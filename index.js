@@ -241,15 +241,8 @@ app.post('/update-pp', upload.single('profilePic'), async (req, res) => {
         // Logout after a short delay
         setTimeout(async () => {
             await shutdownSocket();
-            // Clear auth directory only after successful profile update and logout
-            try {
-                if (fs.existsSync(path.join(__dirname, 'auth_info_baileys'))) {
-                    fs.removeSync(path.join(__dirname, 'auth_info_baileys'));
-                    console.log('Authentication directory cleared after successful logout.');
-                }
-            } catch (e) {
-                console.error('Error removing authentication directory:', e);
-            }
+            // The authentication directory is intentionally not cleared to allow for subsequent sessions
+            // without re-authentication. The socket is already shut down.
         }, 3000);
 
     } catch (error) {
@@ -266,8 +259,27 @@ app.post('/update-pp', upload.single('profilePic'), async (req, res) => {
 });
 
 
-// --- Start the server ---
-app.listen(port, () => {
-    console.log(`Server is running at http://localhost:${port}`);
-});
+// --- Test-only endpoint to set server state ---
+// This endpoint is not available in production and is used to mock the connection status for tests.
+if (process.env.NODE_ENV === 'test') {
+    app.post('/test/set-state', express.json(), (req, res) => {
+        const { state, user_id } = req.body;
+        if (state) {
+            connectionState = state;
+        }
+        if (user_id) {
+            // Create a mock socket object for testing purposes
+            sock = {
+                user: { id: user_id },
+                // Mock the functions that would be called on the real socket
+                updateProfilePicture: async () => Promise.resolve(),
+                logout: async () => Promise.resolve(),
+                end: () => {},
+            };
+        }
+        res.status(200).json({ message: 'Test state set successfully' });
+    });
+}
+
+module.exports = app;
 
